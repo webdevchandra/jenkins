@@ -1,43 +1,48 @@
 // Jenkinsfile
 
-// Define the absolute path to your Magento installation
-def MAGENTO_ROOT = '/var/www/html/jenkins' 
+// 1. Define the sample deployment directory on the Ubuntu server
+def DEPLOY_ROOT = '/var/www/html/jenkins' 
+
 pipeline {
-    // 1. AGENT: Specifies that the job can run on any available Jenkins agent
-    // that has access to your server's filesystem and shell commands (sh).
+    // Agent: Runs the job on any available Jenkins agent/node.
     agent any 
 
-    // 2. ENVIRONMENT: Defines variables and paths for the build.
+    // Environment: Define variables and paths.
     environment {
-        // Ensure standard system paths are available
-        PATH = "/usr/local/bin:$PATH" 
-        // Define a variable for the Git URL that can be used later
-        GIT_URL = 'https://github.com/webdevchandra/jenkins.git' // UPDATE with your actual URL
+        // Define a variable for the Git URL (used for logging/checks, not for cloning itself)
+        GIT_URL = 'https://github.com/webdevchandra/jenkins.git' 
+        // WORKSPACE variable is automatically provided by Jenkins.
     }
     
     stages {
         
-        stage('Setup and Install') {
+        // --- Stage 1: Setup & Clone Verification ---
+        stage('Setup and Verify Clone') {
             steps {
-                echo 'Starting setup: installing dependencies...'
-                // These commands run in the Jenkins WORKSPACE (where the Git clone happened)
+                echo 'Starting setup: Code cloned into Jenkins WORKSPACE.'
+                // Verify the contents of the cloned directory
+                sh 'echo "Listing files in Jenkins Workspace:"'
+                sh 'ls -al ${WORKSPACE}' 
+                // ➡️ Add dependency installation here (e.g., sh 'npm install' or 'pip install')
             }
         }
 
-        // --- Stage 2: Magento Deployment Tasks (Code Sync Added) ---
-         stage('Magento Deployment Tasks') {
+        // --- Stage 2: Code Synchronization to Server Path ---
+        stage('Code Synchronization') {
             steps {
-                echo "Code Initialzed"
+                echo "Initiating code sync to: ${DEPLOY_ROOT}"
                 
-                dir("${MAGENTO_ROOT}") {
+                // CRITICAL: Use 'dir' to change the working directory to the target path.
+                dir("${DEPLOY_ROOT}") {
                     
-                    // 1. UPDATED STEP: rsync command without 'sudo'
-                    sh "rsync -av --exclude 'vendor' --exclude 'node_modules' ${WORKSPACE}/ ."
-                    echo 'Code synchronized from Jenkins Workspace to Magento root.'
+                    // Synchronization Step: Copies all files from the Jenkins WORKSPACE 
+                    // into the DEPLOY_ROOT. This requires the Jenkins user to have 
+                    // password-less write permission via sudoers or file ownership.
+                    sh "rsync -av --exclude '.git' ${WORKSPACE}/ ."
+                    echo 'Code synchronized successfully to server path.'
 
-                    // 2. Magento commands without 'sudo' (now allowed by sudoers file)
-                    echo 'Code updated'
-                   
+                    // ➡️ Add post-sync commands here (e.g., sh 'chmod -R 755 .' or 'npm start')
+                    echo 'Deployment complete placeholder.'
                 }
             }
         }
@@ -47,14 +52,14 @@ pipeline {
     post {
         always {
             echo 'Pipeline finished. Cleaning up workspace.'
-            // Clean up the temporary directory Jenkins uses for cloning the repo
+            // Clean up the temporary directory where the Git repo was cloned
             cleanWs() 
         }
         success {
-            echo '✅ Deployment and pipeline succeeded.'
+            echo '✅ Deployment succeeded.'
         }
         failure {
-            echo '❌ Pipeline failed! Review the logs for errors in dependency installation or Magento commands.'
+            echo '❌ Pipeline failed! Review the logs.'
         }
     }
 }
